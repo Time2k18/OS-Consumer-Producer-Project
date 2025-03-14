@@ -1,0 +1,133 @@
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <semaphore.h>
+#include <pthread.h>
+#include <string>
+#include <time.h>
+
+using namespace std;
+
+string buffer[2];
+int runs;
+sem_t empty;
+sem_t full;
+
+void *consumer(void *arg)
+{
+    int i = 0;
+    //get buffer
+    while (i != runs)
+    {
+        sem_wait(&full);
+        int count;
+        for (int j = 0; j < 2; j++)
+            if (!buffer[j].empty())
+            {
+                cout << "Consumer: " << buffer[j] << endl;
+                string temp = buffer[j];
+                for (int k = 0; k < 3; k++)
+                {
+                    if (temp[k] == 'a' || temp[k] == 'e' || temp[k] == 'i' || temp[k] == 'o' || temp[k] == 'u')
+                    {
+                        count++;
+                    }
+                }
+                if (count == 0)
+                {
+                    cout << "There were no vowels" << endl;
+                    cout << endl;
+                }
+                else
+                {
+                    cout << "Number of Vowels: " << count << endl;
+                    cout << endl;
+                    count = 0;
+                }
+                buffer[j].clear();
+            }
+        i++;
+        sem_post(&empty);
+    }
+    return NULL;
+}
+void *producer(void *arg)
+{
+    pthread_t thread_id;
+    int result1 = pthread_create(&thread_id, NULL, consumer, NULL);
+    int i = 0;
+    string nextp = "";
+    char randCharN;
+    char beforeN;
+    char afterN;
+    srand(time(0));
+
+    while (i != runs)
+    {
+        //produce nextp
+        int random = (rand() % 26) + 97;
+        randCharN = (char)random;
+        beforeN = randCharN - 1;
+        afterN = randCharN + 1;
+
+        if (randCharN == 'a')
+        {
+            beforeN += 26;
+        }
+        else if (randCharN == 'z')
+        {
+            afterN -= 26;
+        }
+
+        nextp.push_back(beforeN);
+        nextp.push_back(randCharN);
+        nextp.push_back(afterN);
+        sem_wait(&empty);
+
+        cout << "Producer: " << nextp << " N = " << randCharN << endl;
+
+        //add next p to buffer
+        if (buffer[0].empty())
+        {
+            buffer[0] = nextp;
+        }
+        else if (buffer[1].empty())
+        {
+            buffer[1] = nextp;
+        }
+
+        sem_post(&full);
+        nextp.clear();
+
+        i++;
+    }
+    if (result1 != 0)
+    {
+        cout << "Consumer thread failed" << endl;
+    }
+    result1 = pthread_join(thread_id, NULL);
+    return NULL;
+}
+int main()
+{
+    sem_init(&empty, 0, 1);
+    sem_init(&full, 0, 0);
+
+    cout << "Enter number of times to run: ";
+    cin >> runs;
+    cout << endl;
+
+    pthread_t thread_id;
+    int result0 = pthread_create(&thread_id, NULL, producer, NULL);
+    result0 = pthread_join(thread_id, NULL);
+
+    if (result0 != 0)
+    {
+        cout << "Producer thread failed" << endl;
+    }
+
+    sem_destroy(&full);
+    sem_destroy(&empty);
+    return 0;
+}
